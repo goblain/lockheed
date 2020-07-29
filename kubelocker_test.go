@@ -2,6 +2,7 @@ package lockheed
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -48,4 +49,11 @@ func TestKubeLocker(t *testing.T) {
 		t.Error(err)
 	}
 	time.Sleep(2 * time.Second)
+	locks, err := NewKubeLocker(cset, "default").List()
+	if err != nil {
+		t.Error(err)
+	}
+	for _, lock := range locks {
+		fmt.Printf("%v\n", lock)
+	}
 }
