@@ -25,11 +25,11 @@ func TestKubeLocker(t *testing.T) {
 		t.Error(err)
 	}
 	lockB := NewLock("testlock", ctx, NewKubeLocker(cset, "default"), opts)
-	if err := lockB.Acquire(); err == nil {
+	if err := lockB.AcquireRetry(2, 2); err == nil {
 		t.Error("Expected to fail")
 	}
 	lockC := NewLock("testlock2", ctx, NewKubeLocker(cset, "default"), opts)
-	if err := lockC.Acquire(); err != nil {
+	if err := lockC.AcquireRetry(2, 2); err != nil {
 		t.Error(err)
 	}
 	if err := lockA.Release(); err != nil {

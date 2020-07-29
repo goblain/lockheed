@@ -88,6 +88,23 @@ func (l *Lock) Acquire() error {
 	return nil
 }
 
+func (l *Lock) AcquireRetry(retries int, delay time.Duration) error {
+	var err error
+	attempt := 0
+	for {
+		attempt++
+		err = l.Acquire()
+		if err != nil {
+			if attempt <= retries {
+				time.Sleep(delay)
+				continue
+			}
+		}
+		break
+	}
+	return err
+}
+
 func (l *Lock) Release() error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
