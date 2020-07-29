@@ -2,6 +2,7 @@ package lockheed
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -16,24 +17,20 @@ const (
 type LockType string
 
 type Lock struct {
-	Name         string                            `json:"name"`
-	InstanceID   string                            `json:"-"`
-	StopChan     chan interface{}                  `json:"-"`
-	EventChan    chan Event                        `json:"-"`
-	EventHandler func(context.Context, chan Event) `json:"-"`
-	Context      context.Context                   `json:"-"`
-	Cancel       func()                            `json:"-"`
-	Options      Options                           `json:"-"`
-	Locker       LockerInterface                   `json:"-"`
-	State        *LockState                        `json:"-"`
-	StateStore   interface{}                       `json:"-"`
-	mutex        sync.Mutex
+	Name       string               `json:"name"`
+	LockType   LockType             `json:"lockType"`
+	Leases     map[string]LockLease `json:"leases"`
+	InstanceID string               `json:"-"`
+	Context    context.Context      `json:"-"`
+	Cancel     func()               `json:"-"`
+	Locker     LockerInterface      `json:"-"`
+	Options
+	stopChan     chan interface{}
+	eventChan    chan Event
+	eventHandler func(context.Context, chan Event)
+	initialized  bool
 	maintained   bool
-}
-
-type LockState struct {
-	LockType LockType             `json:"lockType"`
-	Leases   map[string]LockLease `json:"leases"`
+	mutex        sync.Mutex
 }
 
 type LockLease struct {
@@ -41,14 +38,22 @@ type LockLease struct {
 	Expires    time.Time `json:"expires"`
 }
 
-type Options struct {
-	Duration      time.Duration `json:"duration"`
-	RenewInterval time.Duration `json:"renewInterval"`
-	MaxLeases     *int          `json:"maxLeases"`
-	Takeover      *bool         `json:"takeover"`
+func (lease *LockLease) Expired() bool {
+	if time.Now().Before(lease.Expires) {
+		return false
+	}
+	return true
 }
 
-func DefaultEventHandler(ctx context.Context, echan chan Event) {
+type Options struct {
+	Tags          []string      `json:"tags,omitempty"`
+	Duration      time.Duration `json:"-"`
+	RenewInterval time.Duration `json:"-"`
+	MaxLeases     *int          `json:"-"`
+	Takeover      *bool         `json:"-"`
+}
+
+func DefaulteventHandler(ctx context.Context, echan chan Event) {
 	for {
 		select {
 		case event := <-echan:
@@ -61,34 +66,45 @@ func DefaultEventHandler(ctx context.Context, echan chan Event) {
 
 func NewLock(name string, ctx context.Context, locker LockerInterface, opts Options) *Lock {
 	l := &Lock{
-		Name:         name,
-		InstanceID:   uuid.New().String(),
-		StopChan:     make(chan interface{}),
-		EventChan:    make(chan Event),
-		EventHandler: DefaultEventHandler,
-		Locker:       locker,
-		Options:      opts,
+		Name:    name,
+		Options: opts,
 	}
-	l.Context, l.Cancel = context.WithCancel(ctx)
-	go l.EventHandler(l.Context, l.EventChan)
+	l.Locker = locker
+	l.Init(ctx)
 	return l
 }
 
+func (l *Lock) Init(ctx context.Context) {
+	l.InstanceID = uuid.New().String()
+	l.stopChan = make(chan interface{})
+	l.eventChan = make(chan Event)
+	l.eventHandler = DefaulteventHandler
+	l.Context, l.Cancel = context.WithCancel(ctx)
+	go l.eventHandler(l.Context, l.eventChan)
+	l.initialized = true
+}
+
 func (l *Lock) Acquire() error {
+	if !l.initialized {
+		return fmt.Errorf("Lock needs to be properly initialized first")
+	}
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	if err := l.Locker.Acquire(l); err != nil {
 		l.EmitAcquireFailed(err)
 		return err
 	}
-	if l.Options.RenewInterval.Seconds() != 0 {
-		go l.Maintain(l.StopChan)
+	if l.RenewInterval.Seconds() != 0 {
+		go l.Maintain(l.stopChan)
 	}
 	l.EmitAcquireSuccessful()
 	return nil
 }
 
 func (l *Lock) AcquireRetry(retries int, delay time.Duration) error {
+	if !l.initialized {
+		return fmt.Errorf("Lock needs to be properly initialized first")
+	}
 	var err error
 	attempt := 0
 	for {
@@ -106,6 +122,9 @@ func (l *Lock) AcquireRetry(retries int, delay time.Duration) error {
 }
 
 func (l *Lock) Release() error {
+	if !l.initialized {
+		return fmt.Errorf("Lock needs to be properly initialized first")
+	}
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	if err := l.Locker.Release(l); err != nil {
@@ -113,13 +132,16 @@ func (l *Lock) Release() error {
 		return err
 	}
 	if l.maintained {
-		l.StopChan <- "stop"
+		l.stopChan <- "stop"
 	}
 	l.EmitReleaseSuccessful()
 	return nil
 }
 
 func (l *Lock) Renew() error {
+	if !l.initialized {
+		return fmt.Errorf("Lock needs to be properly initialized first")
+	}
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	if err := l.Locker.Renew(l); err != nil {
@@ -133,7 +155,7 @@ func (l *Lock) Renew() error {
 func (l *Lock) Maintain(stopchan chan interface{}) {
 	l.maintained = true
 	l.EmitMaintainStarted()
-	ticks := time.Tick(l.Options.RenewInterval)
+	ticks := time.Tick(l.RenewInterval)
 	for {
 		select {
 		case <-l.Context.Done():
@@ -157,64 +179,24 @@ func (l *Lock) Maintain(stopchan chan interface{}) {
 }
 
 func (l *Lock) NewExpiryTime() time.Time {
-	return time.Now().Add(l.Options.Duration)
+	return time.Now().Add(l.Duration)
 }
 
-// func (l *Lock) GetEventChan() chan LockEvent {
-// 	return l.EventChan
-// }
+func stringInSlice(pool []string, item string) bool {
+	for _, elem := range pool {
+		if elem == item {
+			return true
+		}
+	}
+	return false
+}
 
-// func (l *Lock) GetID() string {
-// 	return l.ID
-// }
-
-// func (l *Lock) GetContext() context.Context {
-// 	return l.Context
-// }
-
-// func (l *Lock) GetAutoRenew() *time.Duration {
-// 	return l.Options.AutoRenew
-// }
-
-// func Acquire(ctx context.Context, l LockInterface) error {
-// 	l.Init()
-// 	l.Acquire()
-// 	if l.GetAutoRenew() != nil {
-// 		go maintain(l)
-// 	}
-// 	return nil
-// }
-
-// func maintain(l LockInterface) {
-// 	for{
-// 		select {
-// 		case <-time.Tick(*l.GetAutoRenew()):
-// 			if err := l.Renew(); err != nil {
-// 				l.GetEventChan() <-EventRenewFailed(l, err)
-// 			}
-// 		case <-l.GetContext().Done():
-// 			l.Release()
-// 		}
-// 	}
-// }
-
-// func Renew(l LockInterface) error {
-// 	return l.Renew()
-// }
-
-// func Release(l LockInterface) error {
-// 	return l.Release()
-// }
-
-// func maintain(l LockInterface) {
-// 	for{
-// 		select {
-// 		case <-time.Tick(*l.GetAutoRenew()):
-// 			if err := l.Renew(); err != nil {
-// 				l.GetEventChan() <-EventRenewFailed(l, err)
-// 			}
-// 		case <-l.GetContext().Done():
-// 			l.Release()
-// 		}
-// 	}
-// }
+func syncLockFields(src *Lock, dst *Lock) {
+	// tags are only added to locks, not removed
+	for _, tag := range src.Tags {
+		if !stringInSlice(dst.Tags, tag) {
+			dst.Tags = append(dst.Tags, tag)
+		}
+	}
+	dst.Tags = src.Tags
+}

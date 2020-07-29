@@ -4,6 +4,34 @@ type LockerInterface interface {
 	Acquire(*Lock) error
 	Renew(*Lock) error
 	Release(*Lock) error
-	// List all locks this locker has access to
-	List() ([]string, error)
+	// List all locks, this locker has access to
+	GetAllLocks() ([]*Lock, error)
+	// ForcefulRemoval(string, []Condition)
+}
+
+func GetLocks(locker LockerInterface, c *Condition) ([]*Lock, error) {
+	var result []*Lock
+	locks, err := locker.GetAllLocks()
+	if err != nil {
+		return nil, err
+	}
+	if c == nil {
+		result = locks
+	} else {
+		for _, lock := range locks {
+			matching, err := lock.Evaluate(c)
+			if err != nil {
+				return nil, err
+			}
+			if matching {
+				result = append(result, lock)
+			}
+			// for _, lease := range lock.Leases {
+			// 	if time.Now().Before(lease.Expires) {
+			// 		result = append(result)
+			// 	}
+			// }
+		}
+	}
+	return result, nil
 }

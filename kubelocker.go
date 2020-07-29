@@ -52,19 +52,20 @@ func (locker *KubeLocker) ConfigMapExists(l *Lock) (bool, error) {
 }
 
 func (locker *KubeLocker) CreateNewConfigMap(l *Lock) error {
-	lockStateJson, err := json.Marshal(&LockState{LockType: LockTypeMutex})
+	lockStateJson, err := json.Marshal(l)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("newconf: %s \n", string(lockStateJson))
 	cmap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: locker.GetConfigMapName(l),
 			Labels: map[string]string{
-				"lockheed/lockstate": "",
+				"lockheed/lock": "",
 			},
 		},
 		Data: map[string]string{
-			"lockState": string(lockStateJson),
+			"lock": string(lockStateJson),
 		},
 	}
 	_, err = locker.Clientset.CoreV1().ConfigMaps(locker.Namespace).Create(l.Context, cmap, metav1.CreateOptions{})
@@ -145,19 +146,31 @@ func (locker *KubeLocker) ReleaseConfigMap(l *Lock) error {
 	return nil
 }
 
-func (locker *KubeLocker) List() ([]string, error) {
-	return []string{}, nil
+func (locker *KubeLocker) GetAllLocks() ([]*Lock, error) {
+	var result []*Lock
+	list, err := locker.Clientset.CoreV1().ConfigMaps(locker.Namespace).List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		return result, err
+	}
+	for _, item := range list.Items {
+		lockState := &Lock{}
+		if err := json.Unmarshal([]byte(item.Data["lock"]), lockState); err != nil {
+			return result, err
+		}
+		result = append(result, lockState)
+	}
+	return result, nil
 }
 
 func (locker *KubeLocker) Acquire(l *Lock) error {
 	locker.Init(l)
 	cmap, err := locker.GetReservedConfigMap(l)
 	if err != nil {
-		return err
+		return fmt.Errorf("GetReservedConfigMap: %w", err)
 	}
 
-	lockState := &LockState{}
-	if err := json.Unmarshal([]byte(cmap.Data["lockState"]), lockState); err != nil {
+	lockState := &Lock{}
+	if err := json.Unmarshal([]byte(cmap.Data["lock"]), lockState); err != nil {
 		locker.ReleaseConfigMap(l)
 		return err
 	}
@@ -191,7 +204,7 @@ func (locker *KubeLocker) Acquire(l *Lock) error {
 		locker.ReleaseConfigMap(l)
 		return err
 	}
-	cmap.Data["lockState"] = string(lockStateJson)
+	cmap.Data["lock"] = string(lockStateJson)
 
 	return locker.UpdateAndReleaseConfigMap(l.Context, cmap)
 }
@@ -202,8 +215,8 @@ func (locker *KubeLocker) Renew(l *Lock) error {
 		return err
 	}
 
-	lockState := &LockState{}
-	if err := json.Unmarshal([]byte(cmap.Data["lockState"]), lockState); err != nil {
+	lockState := &Lock{}
+	if err := json.Unmarshal([]byte(cmap.Data["lock"]), lockState); err != nil {
 		return err
 	}
 
@@ -221,7 +234,7 @@ func (locker *KubeLocker) Renew(l *Lock) error {
 	if err != nil {
 		return err
 	}
-	cmap.Data["lockState"] = string(lockStateJson)
+	cmap.Data["lock"] = string(lockStateJson)
 
 	if err := locker.UpdateAndReleaseConfigMap(l.Context, cmap); err != nil {
 		return err
@@ -235,18 +248,19 @@ func (locker *KubeLocker) Release(l *Lock) error {
 		return err
 	}
 
-	lockState := &LockState{}
-	if err := json.Unmarshal([]byte(cmap.Data["lockState"]), lockState); err != nil {
+	lockState := &Lock{}
+	if err := json.Unmarshal([]byte(cmap.Data["lock"]), lockState); err != nil {
 		return err
 	}
 
 	delete(lockState.Leases, l.InstanceID)
+	syncLockFields(l, lockState)
 
 	lockStateJson, err := json.Marshal(lockState)
 	if err != nil {
 		return err
 	}
-	cmap.Data["lockState"] = string(lockStateJson)
+	cmap.Data["lock"] = string(lockStateJson)
 
 	return locker.UpdateAndReleaseConfigMap(l.Context, cmap)
 }

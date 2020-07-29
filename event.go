@@ -9,7 +9,7 @@ type Event struct {
 }
 
 func (l *Lock) Emit(e Event) error {
-	l.EventChan <- e
+	l.eventChan <- e
 	return e.Err
 }
 

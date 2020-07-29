@@ -2,7 +2,6 @@ package lockheed
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -19,7 +18,8 @@ func TestKubeLocker(t *testing.T) {
 	// ctx, cancel := context.WithCancel(context.Background())
 	opts := Options{
 		Duration:      30 * time.Second,
-		RenewInterval: 4 * time.Second,
+		RenewInterval: 5 * time.Second,
+		Tags:          []string{"testtag"},
 	}
 	lockA := NewLock("testlock", ctx, NewKubeLocker(cset, "default"), opts)
 	if err := lockA.Acquire(); err != nil {
@@ -42,6 +42,31 @@ func TestKubeLocker(t *testing.T) {
 	if err := lockB.Release(); err != nil {
 		t.Error(err)
 	}
+
+	cond := &Condition{
+		Operation: OperationAnd,
+		Conditions: &[]Condition{
+			Condition{
+				Operation: OperationEquals,
+				Field:     FieldAcquired,
+				Value:     true,
+			},
+			Condition{
+				Operation: OperationContains,
+				Field:     FieldTags,
+				Value:     "testtag",
+			},
+		},
+	}
+
+	locks, err := GetLocks(NewKubeLocker(cset, "default"), cond)
+	if err != nil {
+		t.Error(err)
+	}
+	if len(locks) != 1 || locks[0].Name != "testlock2" {
+		t.Error("Lock not listed as expected")
+	}
+
 	if err := lockC.Release(); err != nil {
 		t.Error(err)
 	}
@@ -49,11 +74,4 @@ func TestKubeLocker(t *testing.T) {
 		t.Error(err)
 	}
 	time.Sleep(2 * time.Second)
-	locks, err := NewKubeLocker(cset, "default").List()
-	if err != nil {
-		t.Error(err)
-	}
-	for _, lock := range locks {
-		fmt.Printf("%v\n", lock)
-	}
 }
