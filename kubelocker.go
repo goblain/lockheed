@@ -3,12 +3,17 @@ package lockheed
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 type KubeLocker struct {
@@ -126,6 +131,20 @@ func (locker *KubeLocker) UpdateAndReleaseConfigMap(ctx context.Context, cmap *c
 	return nil
 }
 
+// TODO: look at potential corner-cases
+func (locker *KubeLocker) ReleaseConfigMap(l *Lock) error {
+	cmap, err := locker.GetConfigMap(l)
+	if err != nil {
+		return err
+	}
+	if cmap.ObjectMeta.Annotations["reserved/by"] == l.InstanceID {
+		delete(cmap.ObjectMeta.Annotations, "reserved/by")
+		delete(cmap.ObjectMeta.Annotations, "reserved/expires")
+		locker.Clientset.CoreV1().ConfigMaps(locker.Namespace).Update(l.Context, cmap, metav1.UpdateOptions{})
+	}
+	return nil
+}
+
 func (locker *KubeLocker) List() ([]string, error) {
 	return []string{}, nil
 }
@@ -139,17 +158,21 @@ func (locker *KubeLocker) Acquire(l *Lock) error {
 
 	lockState := &LockState{}
 	if err := json.Unmarshal([]byte(cmap.Data["lockState"]), lockState); err != nil {
+		locker.ReleaseConfigMap(l)
 		return err
 	}
 
 	leaseCount := len(lockState.Leases)
 	if lockState.LockType == LockTypeMutex && leaseCount > 0 {
 		if leaseCount > 1 {
+			locker.ReleaseConfigMap(l)
 			return fmt.Errorf("Invalid number of leases for mutex lock: %d", leaseCount)
 		}
-		lease, exists := lockState.Leases[l.InstanceID]
-		if exists && time.Now().Before(lease.Expires) {
-			return fmt.Errorf("Mutex lock is already held by %s", lease.InstanceID)
+		for key, lease := range lockState.Leases {
+			if key != l.InstanceID && time.Now().Before(lease.Expires) {
+				locker.ReleaseConfigMap(l)
+				return fmt.Errorf("Mutex lock is already held by %s", lease.InstanceID)
+			}
 		}
 	}
 
@@ -159,11 +182,13 @@ func (locker *KubeLocker) Acquire(l *Lock) error {
 			l.InstanceID: LockLease{InstanceID: l.InstanceID, Expires: l.NewExpiryTime()},
 		}
 	} else {
+		locker.ReleaseConfigMap(l)
 		return fmt.Errorf("Non-mutex locks not implemented yet")
 	}
 
 	lockStateJson, err := json.Marshal(lockState)
 	if err != nil {
+		locker.ReleaseConfigMap(l)
 		return err
 	}
 	cmap.Data["lockState"] = string(lockStateJson)
@@ -224,4 +249,27 @@ func (locker *KubeLocker) Release(l *Lock) error {
 	cmap.Data["lockState"] = string(lockStateJson)
 
 	return locker.UpdateAndReleaseConfigMap(l.Context, cmap)
+}
+
+func GetKubeConfig() *rest.Config {
+	var config *rest.Config
+	var kubeconfig *string
+	var err error
+	// creates the in-cluster config
+	config, err = rest.InClusterConfig()
+	if err != nil {
+		if kubeconfig == nil {
+			if home := os.Getenv("HOME"); home != "" {
+				kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+			} else {
+				kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+			}
+			flag.Parse()
+		}
+		config, err = clientcmd.BuildConfigFromFlags("", *kubeconfig)
+		if err != nil {
+			panic(err.Error())
+		}
+	}
+	return config
 }

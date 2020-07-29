@@ -28,6 +28,7 @@ type Lock struct {
 	State        *LockState                        `json:"-"`
 	StateStore   interface{}                       `json:"-"`
 	mutex        sync.Mutex
+	maintained   bool
 }
 
 type LockState struct {
@@ -94,6 +95,9 @@ func (l *Lock) Release() error {
 		l.EmitReleaseFailed(err)
 		return err
 	}
+	if l.maintained {
+		l.StopChan <- "stop"
+	}
 	l.EmitReleaseSuccessful()
 	return nil
 }
@@ -110,22 +114,29 @@ func (l *Lock) Renew() error {
 }
 
 func (l *Lock) Maintain(stopchan chan interface{}) {
+	l.maintained = true
 	l.EmitMaintainStarted()
 	ticks := time.Tick(l.Options.RenewInterval)
 	for {
 		select {
 		case <-l.Context.Done():
-			l.Release()
-			break
+			l.maintained = false
+			l.EmitMaintainStopped()
+			return
 		case <-ticks:
+			if !l.maintained {
+				l.EmitMaintainStopped()
+				return
+			}
 			if err := l.Renew(); err != nil {
 				continue
 			}
 		case <-stopchan:
-			break
+			l.maintained = false
+			l.EmitMaintainStopped()
+			return
 		}
 	}
-	l.EmitMaintainStopped()
 }
 
 func (l *Lock) NewExpiryTime() time.Time {
