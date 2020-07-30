@@ -55,7 +55,7 @@ type Options struct {
 	forceCondition *Condition
 }
 
-func DefaulteventHandler(ctx context.Context, echan chan Event) {
+func DefaultEventHandler(ctx context.Context, echan chan Event) {
 	for {
 		select {
 		case event := <-echan:
@@ -66,22 +66,49 @@ func DefaulteventHandler(ctx context.Context, echan chan Event) {
 	}
 }
 
-func NewLock(name string, ctx context.Context, locker LockerInterface, opts Options) *Lock {
-	l := &Lock{
-		Name:    name,
-		Options: opts,
-	}
+func NewLock(name string, locker LockerInterface) *Lock {
+	l := &Lock{Name: name}
 	l.Locker = locker
-	l.Init(ctx)
+	l = l.WithContext(context.Background())
+	l.Init()
 	return l
 }
 
-func (l *Lock) Init(ctx context.Context) {
+func (l *Lock) WithContext(ctx context.Context) *Lock {
+	l.Context, l.Cancel = context.WithCancel(ctx)
+	return l
+}
+
+func (l *Lock) WithDuration(duration time.Duration) *Lock {
+	l.Duration = duration
+	return l
+}
+
+func (l *Lock) WithTags(tags []string) *Lock {
+	l.Tags = tags
+	return l
+}
+
+func (l *Lock) WithResetTags() *Lock {
+	l.resetTags = true
+	return l
+}
+
+func (l *Lock) WithForce(c Condition) *Lock {
+	l.forceCondition = &c
+	return l
+}
+
+func (l *Lock) WithRenewInterval(interval time.Duration) *Lock {
+	l.RenewInterval = interval
+	return l
+}
+
+func (l *Lock) Init() {
 	l.InstanceID = uuid.New().String()
 	l.stopChan = make(chan interface{})
 	l.eventChan = make(chan Event)
-	l.eventHandler = DefaulteventHandler
-	l.Context, l.Cancel = context.WithCancel(ctx)
+	l.eventHandler = DefaultEventHandler
 	go l.eventHandler(l.Context, l.eventChan)
 	l.initialized = true
 }
@@ -97,7 +124,7 @@ func (l *Lock) Acquire() error {
 		return err
 	}
 	if l.RenewInterval.Seconds() != 0 {
-		go l.Maintain(l.stopChan)
+		go l.Maintain()
 	}
 	l.EmitAcquireSuccessful()
 	return nil
@@ -133,9 +160,7 @@ func (l *Lock) Release() error {
 		l.EmitReleaseFailed(err)
 		return err
 	}
-	if l.maintained {
-		l.stopChan <- "stop"
-	}
+	l.maintained = false
 	l.EmitReleaseSuccessful()
 	return nil
 }
@@ -154,7 +179,7 @@ func (l *Lock) Renew() error {
 	return nil
 }
 
-func (l *Lock) Maintain(stopchan chan interface{}) {
+func (l *Lock) Maintain() {
 	l.maintained = true
 	l.EmitMaintainStarted()
 	ticks := time.Tick(l.RenewInterval)
@@ -169,13 +194,7 @@ func (l *Lock) Maintain(stopchan chan interface{}) {
 				l.EmitMaintainStopped()
 				return
 			}
-			if err := l.Renew(); err != nil {
-				continue
-			}
-		case <-stopchan:
-			l.maintained = false
-			l.EmitMaintainStopped()
-			return
+			l.Renew()
 		}
 	}
 }

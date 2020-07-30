@@ -1,7 +1,6 @@
 package lockheed
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -18,55 +17,59 @@ func GetTestKubeLocker() LockerInterface {
 }
 
 func TestKubeLockerForce(t *testing.T) {
-	ctx := context.Background()
-	opts := Options{
-		Duration: 30 * time.Second,
-		Tags:     []string{"forceme"},
-	}
-	lockA := NewLock("testlockx", ctx, GetTestKubeLocker(), opts)
+	lockA := NewLock("testlockx", GetTestKubeLocker()).WithDuration(5 * time.Second).WithTags([]string{"forceme"})
 	if err := lockA.Acquire(); err != nil {
 		t.Error(err)
 	}
-	lockB := NewLock("testlockx", ctx, GetTestKubeLocker(), opts)
+	lockB := NewLock("testlockx", GetTestKubeLocker()).WithDuration(5 * time.Second)
 	if err := lockB.Acquire(); err == nil {
 		t.Error("Failure expected")
 	}
-	opts.forceCondition = &Condition{
-		Operation: OperationContains,
-		Field:     FieldTags,
-		Value:     "forceme",
-	}
-	opts.Tags = []string{}
-	opts.resetTags = true
-	lockC := NewLock("testlockx", ctx, GetTestKubeLocker(), opts)
+
+	lockC := NewLock("testlockx", GetTestKubeLocker()).
+		WithDuration(30 * time.Second).
+		WithResetTags().
+		WithForce(Condition{
+			Operation: OperationContains,
+			Field:     FieldTags,
+			Value:     "forceme",
+		})
 	if err := lockC.Acquire(); err != nil {
 		t.Error(err)
 	}
-	lockD := NewLock("testlockx", ctx, GetTestKubeLocker(), opts)
+	lockD := NewLock("testlockx", GetTestKubeLocker()).
+		WithDuration(30 * time.Second).
+		WithResetTags().
+		WithForce(Condition{
+			Operation: OperationContains,
+			Field:     FieldTags,
+			Value:     "forceme",
+		})
 	if err := lockD.Acquire(); err == nil {
 		t.Error("Failure expected")
 	}
-
 }
 
 func TestKubeLocker(t *testing.T) {
-	ctx := context.Background()
-	// ctx, cancel := context.WithCancel(context.Background())
-	opts := Options{
-		Duration:      30 * time.Second,
-		RenewInterval: 5 * time.Second,
-		Tags:          []string{"testtag"},
-	}
-	lockA := NewLock("testlock", ctx, GetTestKubeLocker(), opts)
+	lockA := NewLock("testlock", GetTestKubeLocker()).
+		WithDuration(10 * time.Second).
+		WithRenewInterval(5 * time.Second).
+		WithTags([]string{"testtag"})
 	if err := lockA.Acquire(); err != nil {
 		t.Error(err)
 	}
-	lockB := NewLock("testlock", ctx, NewKubeLocker(cset, "default"), opts)
+	lockB := NewLock("testlock", GetTestKubeLocker()).
+		WithDuration(10 * time.Second).
+		WithRenewInterval(5 * time.Second).
+		WithTags([]string{"testtag"})
 	if err := lockB.AcquireRetry(2, 2); err == nil {
 		t.Error("Expected to fail")
 	}
-	lockC := NewLock("testlock2", ctx, NewKubeLocker(cset, "default"), opts)
-	if err := lockC.AcquireRetry(2, 2); err != nil {
+	lockC := NewLock("testlock2", GetTestKubeLocker()).
+		WithDuration(10 * time.Second).
+		WithRenewInterval(5 * time.Second).
+		WithTags([]string{"testtag"})
+	if err := lockC.AcquireRetry(5, 3); err != nil {
 		t.Error(err)
 	}
 	if err := lockA.Release(); err != nil {
