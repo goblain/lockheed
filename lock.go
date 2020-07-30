@@ -60,6 +60,9 @@ func DefaultEventHandler(ctx context.Context, echan chan Event) {
 		select {
 		case event := <-echan:
 			log.Printf("Event: %s\n", event.Message)
+			if event.Err != nil {
+				log.Printf("Error: %s\n", event.Err.Error())
+			}
 		case <-ctx.Done():
 			return
 		}
