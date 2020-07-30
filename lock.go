@@ -204,9 +204,7 @@ func (l *Lock) Maintain() {
 
 func (l *Lock) NewExpiryTime() time.Time {
 	if l.Duration == 0 {
-		// https://stackoverflow.com/questions/25065055/what-is-the-maximum-time-time-in-go
-		unixToInternal := int64((1969*365 + 1969/4 - 1969/100 + 1969/400) * 24 * 60 * 60)
-		return time.Unix(1<<63-1-unixToInternal, 999999999)
+		return time.Date(9999, time.December, 31, 23, 59, 59, 0, nil)
 	}
 	return time.Now().Add(l.Duration)
 }
