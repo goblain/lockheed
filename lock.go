@@ -204,7 +204,8 @@ func (l *Lock) Maintain() {
 
 func (l *Lock) NewExpiryTime() time.Time {
 	if l.Duration == 0 {
-		return time.Date(9999, time.December, 31, 23, 59, 59, 0, nil)
+		loc, _ := time.LoadLocation("UTC")
+		return time.Date(9999, time.December, 31, 23, 59, 59, 0, loc)
 	}
 	return time.Now().Add(l.Duration)
 }
