@@ -16,6 +16,7 @@ In one of the projects required locking of some actions in scope of a namespace,
 * Dynamic tagging locks
 * Listing all locks with filtering based on `Conditions`
 * Forcefull takeover of locks based on `Conditions`
+* (planned) Shared locks where some lock instances can exist in parallel while others might wait for the lock to be freed or lockable in mutex mode
 
 ## Configuration directives
 
@@ -66,3 +67,9 @@ lock := lockheed.NewLock("lockname", lockheed.NewKubeLocker().
 lock.Acquire()
 defer lock.Release()
 ```
+
+## Kubelocker
+
+Kubelocker stores lock state in `ConfigMap` objects of it's designated namespace. 
+ConfigMaps are named as `lockheed-<lockname>`. The program implementing this library 
+needs respective RBAC rules allowing `ConfigMap` manipulation.
