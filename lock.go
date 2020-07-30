@@ -46,11 +46,13 @@ func (lease *LockLease) Expired() bool {
 }
 
 type Options struct {
-	Tags          []string      `json:"tags,omitempty"`
-	Duration      time.Duration `json:"-"`
-	RenewInterval time.Duration `json:"-"`
-	MaxLeases     *int          `json:"-"`
-	Takeover      *bool         `json:"-"`
+	Tags           []string      `json:"tags,omitempty"`
+	Duration       time.Duration `json:"-"`
+	RenewInterval  time.Duration `json:"-"`
+	MaxLeases      *int          `json:"-"`
+	Takeover       *bool         `json:"-"`
+	resetTags      bool
+	forceCondition *Condition
 }
 
 func DefaulteventHandler(ctx context.Context, echan chan Event) {
@@ -193,10 +195,13 @@ func stringInSlice(pool []string, item string) bool {
 
 func syncLockFields(src *Lock, dst *Lock) {
 	// tags are only added to locks, not removed
-	for _, tag := range src.Tags {
-		if !stringInSlice(dst.Tags, tag) {
-			dst.Tags = append(dst.Tags, tag)
+	if src.resetTags {
+		dst.Tags = src.Tags
+	} else {
+		for _, tag := range src.Tags {
+			if !stringInSlice(dst.Tags, tag) {
+				dst.Tags = append(dst.Tags, tag)
+			}
 		}
 	}
-	dst.Tags = src.Tags
 }

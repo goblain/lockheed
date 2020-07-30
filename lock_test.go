@@ -8,12 +8,48 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-func TestKubeLocker(t *testing.T) {
-	cset, err := kubernetes.NewForConfig(GetKubeConfig())
-	if err != nil {
+var cset *kubernetes.Clientset
+
+func GetTestKubeLocker() LockerInterface {
+	if cset == nil {
+		cset, _ = kubernetes.NewForConfig(GetKubeConfig())
+	}
+	return NewKubeLocker(cset, "default")
+}
+
+func TestKubeLockerForce(t *testing.T) {
+	ctx := context.Background()
+	opts := Options{
+		Duration: 30 * time.Second,
+		Tags:     []string{"forceme"},
+	}
+	lockA := NewLock("testlockx", ctx, GetTestKubeLocker(), opts)
+	if err := lockA.Acquire(); err != nil {
 		t.Error(err)
 	}
+	lockB := NewLock("testlockx", ctx, GetTestKubeLocker(), opts)
+	if err := lockB.Acquire(); err == nil {
+		t.Error("Failure expected")
+	}
+	opts.forceCondition = &Condition{
+		Operation: OperationContains,
+		Field:     FieldTags,
+		Value:     "forceme",
+	}
+	opts.Tags = []string{}
+	opts.resetTags = true
+	lockC := NewLock("testlockx", ctx, GetTestKubeLocker(), opts)
+	if err := lockC.Acquire(); err != nil {
+		t.Error(err)
+	}
+	lockD := NewLock("testlockx", ctx, GetTestKubeLocker(), opts)
+	if err := lockD.Acquire(); err == nil {
+		t.Error("Failure expected")
+	}
 
+}
+
+func TestKubeLocker(t *testing.T) {
 	ctx := context.Background()
 	// ctx, cancel := context.WithCancel(context.Background())
 	opts := Options{
@@ -21,7 +57,7 @@ func TestKubeLocker(t *testing.T) {
 		RenewInterval: 5 * time.Second,
 		Tags:          []string{"testtag"},
 	}
-	lockA := NewLock("testlock", ctx, NewKubeLocker(cset, "default"), opts)
+	lockA := NewLock("testlock", ctx, GetTestKubeLocker(), opts)
 	if err := lockA.Acquire(); err != nil {
 		t.Error(err)
 	}

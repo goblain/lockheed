@@ -175,6 +175,18 @@ func (locker *KubeLocker) Acquire(l *Lock) error {
 		return err
 	}
 
+	force := false
+	if l.forceCondition != nil {
+		force, err = lockState.Evaluate(l.forceCondition)
+		if err != nil {
+			return err
+		}
+	}
+
+	if lockState.LockType == "" {
+		lockState.LockType = LockTypeMutex
+	}
+
 	leaseCount := len(lockState.Leases)
 	if lockState.LockType == LockTypeMutex && leaseCount > 0 {
 		if leaseCount > 1 {
@@ -182,15 +194,14 @@ func (locker *KubeLocker) Acquire(l *Lock) error {
 			return fmt.Errorf("Invalid number of leases for mutex lock: %d", leaseCount)
 		}
 		for key, lease := range lockState.Leases {
-			if key != l.InstanceID && time.Now().Before(lease.Expires) {
+			if key != l.InstanceID && !lease.Expired() && !force {
 				locker.ReleaseConfigMap(l)
 				return fmt.Errorf("Mutex lock is already held by %s", lease.InstanceID)
 			}
 		}
 	}
 
-	if lockState.LockType == "" || lockState.LockType == LockTypeMutex {
-		lockState.LockType = LockTypeMutex
+	if lockState.LockType == LockTypeMutex {
 		lockState.Leases = map[string]LockLease{
 			l.InstanceID: LockLease{InstanceID: l.InstanceID, Expires: l.NewExpiryTime()},
 		}
@@ -198,6 +209,8 @@ func (locker *KubeLocker) Acquire(l *Lock) error {
 		locker.ReleaseConfigMap(l)
 		return fmt.Errorf("Non-mutex locks not implemented yet")
 	}
+
+	syncLockFields(l, lockState)
 
 	lockStateJson, err := json.Marshal(lockState)
 	if err != nil {
