@@ -26,11 +26,6 @@ func GetLocks(locker LockerInterface, c *Condition) ([]*Lock, error) {
 			if matching {
 				result = append(result, lock)
 			}
-			// for _, lease := range lock.Leases {
-			// 	if time.Now().Before(lease.Expires) {
-			// 		result = append(result)
-			// 	}
-			// }
 		}
 	}
 	return result, nil

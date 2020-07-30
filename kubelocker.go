@@ -237,7 +237,7 @@ func (locker *KubeLocker) Renew(l *Lock) error {
 	if !exists {
 		return fmt.Errorf("No lease to renew for %s", l.InstanceID)
 	}
-	if time.Now().After(lease.Expires) {
+	if lease.Expired() {
 		return fmt.Errorf("Lease on lock %s for %s already expired", l.Name, l.InstanceID)
 	}
 	lease.Expires = l.NewExpiryTime()
