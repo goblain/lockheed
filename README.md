@@ -22,17 +22,17 @@ In one of the projects required locking of some actions in scope of a namespace,
 Any lock object is instantiated in an inactive state. Untill activated by calling lock.Acquire() it can be further configured with following methods, all of which return back (the same) lock object pointer, to allow chaining their invocation like `lock.DirectiveA().DirectiveB()`.
 
 * `.WithDuration(time.Duration)`
-  A duration for whitch to establish or renew the lock every time, `0` = infinite
+    A duration for whitch to establish or renew the lock every time, `0` = infinite
 * `.WithRenewInterval(time.Duration)`
-  How often to renew the lock, no renewal if not specified
+    How often to renew the lock, no renewal if not specified
 * `.WithContext(context.Context)`
-  Use this custom context within the lock
+    Use this custom context within the lock
 * `.WithTags([]string)`
-  Add these tags to the lock state if not already there
+    Add these tags to the lock state if not already there
 * `.WithResetTags()`
-  Remove any tags that were not specified withing `.WithTags()` directive
+    Remove any tags that were not specified withing `.WithTags()` directive
 * `.WithForce(Condition)`
-  Allow forcefull takeover of a lock if it matches specified condition
+    Allow forcefull takeover of a lock if it matches specified condition
 
 ## Examples
 
