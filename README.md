@@ -38,7 +38,7 @@ Any lock object is instantiated in an inactive state. Untill activated by callin
 ## Examples
 
 ```
-lock := lockheed.NewLock("lockname", lockheed.NewKubeLocker().
+lock := lockheed.NewLock("lockname", lockheed.NewKubeLocker()).
     WithDuration(30 * time.Second).
     WithRenewInterval(9 * time.Second)
 lock.Acquire()
@@ -46,7 +46,7 @@ defer lock.Release()
 ```
 
 ```
-lock := lockheed.NewLock("lockname", lockheed.NewKubeLocker().
+lock := lockheed.NewLock("lockname", lockheed.NewKubeLocker()).
     WithDuration(30 * time.Second).
     WithRenewInterval(9 * time.Second).
     WithTags([]string{"tag1", "tag2"})
@@ -55,7 +55,7 @@ defer lock.Release()
 ```
 
 ```
-lock := lockheed.NewLock("lockname", lockheed.NewKubeLocker().
+lock := lockheed.NewLock("lockname", lockheed.NewKubeLocker()).
     WithDuration(30 * time.Second).
     WithRenewInterval(9 * time.Second).
     WithResetTags().
