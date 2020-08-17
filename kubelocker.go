@@ -148,7 +148,10 @@ func (locker *KubeLocker) ReleaseConfigMap(l *Lock) error {
 
 func (locker *KubeLocker) GetAllLocks() ([]*Lock, error) {
 	var result []*Lock
-	list, err := locker.Clientset.CoreV1().ConfigMaps(locker.Namespace).List(context.Background(), metav1.ListOptions{})
+	opts := metav1.ListOptions{
+		LabelSelector: "lockheed/lock",
+	}
+	list, err := locker.Clientset.CoreV1().ConfigMaps(locker.Namespace).List(context.Background(), opts)
 	if err != nil {
 		return result, err
 	}

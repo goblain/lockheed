@@ -1,9 +1,12 @@
 package lockheed
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -14,6 +17,24 @@ func GetTestKubeLocker() LockerInterface {
 		cset, _ = kubernetes.NewForConfig(GetKubeConfig())
 	}
 	return NewKubeLocker(cset, "default")
+}
+
+func CreateEmptyConfigmap() error {
+	ctx := context.Background()
+	if cset == nil {
+		cset, _ = kubernetes.NewForConfig(GetKubeConfig())
+	}
+	cmap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "lockheed-empty",
+		},
+	}
+	_, err := cset.CoreV1().ConfigMaps("default").Create(ctx, cmap, metav1.CreateOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
+
 }
 
 func TestKubeLockerForce(t *testing.T) {
@@ -51,6 +72,7 @@ func TestKubeLockerForce(t *testing.T) {
 }
 
 func TestKubeLocker(t *testing.T) {
+	CreateEmptyConfigmap()
 	lockA := NewLock("testlock", GetTestKubeLocker()).
 		WithDuration(10 * time.Second).
 		WithRenewInterval(5 * time.Second).
