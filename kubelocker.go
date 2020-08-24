@@ -56,7 +56,6 @@ func (locker *KubeLocker) CreateNewConfigMap(l *Lock) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("newconf: %s \n", string(lockStateJson))
 	cmap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: locker.GetConfigMapName(l),
