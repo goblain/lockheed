@@ -159,11 +159,11 @@ func (l *Lock) Release() error {
 	}
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
+	l.maintained = false
 	if err := l.Locker.Release(l); err != nil {
 		l.EmitReleaseFailed(err)
 		return err
 	}
-	l.maintained = false
 	l.EmitReleaseSuccessful()
 	return nil
 }
