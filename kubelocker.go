@@ -95,6 +95,21 @@ func (locker *KubeLocker) GetConfigMap(l *Lock) (*corev1.ConfigMap, error) {
 }
 
 func (locker *KubeLocker) GetReservedConfigMap(l *Lock) (*corev1.ConfigMap, error) {
+	attempt := 0
+	for {
+		attempt++
+		cmap, err := locker.GetReservedConfigMapAttempt(l)
+		if err == nil {
+			return cmap, nil
+		}
+		if attempt >= 5 {
+			return cmap, err
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+func (locker *KubeLocker) GetReservedConfigMapAttempt(l *Lock) (*corev1.ConfigMap, error) {
 	name := locker.GetConfigMapName(l)
 	cmap, err := locker.GetConfigMap(l)
 	if err != nil {
