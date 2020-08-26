@@ -16,7 +16,7 @@ func (l *Lock) Emit(e Event) error {
 func (l *Lock) EmitRenewSuccessful() {
 	l.Emit(Event{
 		Code:    211,
-		Message: fmt.Sprintf("Lock %s renewal successful", l.Name),
+		Message: fmt.Sprintf("Lock %s(%s) renewal successful", l.Name, l.InstanceID),
 		Err:     nil,
 	})
 }
@@ -24,7 +24,7 @@ func (l *Lock) EmitRenewSuccessful() {
 func (l *Lock) EmitRenewFailed(err error) {
 	l.Emit(Event{
 		Code:    511,
-		Message: fmt.Sprintf("Lock %s renewal failed", l.Name),
+		Message: fmt.Sprintf("Lock %s(%s) renewal failed", l.Name, l.InstanceID),
 		Err:     err,
 	})
 }
@@ -32,7 +32,7 @@ func (l *Lock) EmitRenewFailed(err error) {
 func (l *Lock) EmitReleaseSuccessful() {
 	l.Emit(Event{
 		Code:    212,
-		Message: fmt.Sprintf("Lock %s release successful", l.Name),
+		Message: fmt.Sprintf("Lock %s(%s) release successful", l.Name, l.InstanceID),
 		Err:     nil,
 	})
 }
@@ -40,7 +40,7 @@ func (l *Lock) EmitReleaseSuccessful() {
 func (l *Lock) EmitReleaseFailed(err error) {
 	l.Emit(Event{
 		Code:    512,
-		Message: fmt.Sprintf("Lock %s release failed", l.Name),
+		Message: fmt.Sprintf("Lock %s(%s) release failed", l.Name, l.InstanceID),
 		Err:     err,
 	})
 }
@@ -48,7 +48,7 @@ func (l *Lock) EmitReleaseFailed(err error) {
 func (l *Lock) EmitAcquireSuccessful() {
 	l.Emit(Event{
 		Code:    213,
-		Message: fmt.Sprintf("Lock %s acquire successful", l.Name),
+		Message: fmt.Sprintf("Lock %s(%s) acquire successful", l.Name, l.InstanceID),
 		Err:     nil,
 	})
 }
@@ -56,7 +56,7 @@ func (l *Lock) EmitAcquireSuccessful() {
 func (l *Lock) EmitAcquireFailed(err error) {
 	l.Emit(Event{
 		Code:    513,
-		Message: fmt.Sprintf("Lock %s acquire failed", l.Name),
+		Message: fmt.Sprintf("Lock %s(%s) acquire failed", l.Name, l.InstanceID),
 		Err:     err,
 	})
 }
@@ -64,7 +64,7 @@ func (l *Lock) EmitAcquireFailed(err error) {
 func (l *Lock) EmitMaintainStarted() {
 	l.Emit(Event{
 		Code:    214,
-		Message: fmt.Sprintf("Lock %s maintain loop started", l.Name),
+		Message: fmt.Sprintf("Lock %s(%s) maintain loop started", l.Name, l.InstanceID),
 		Err:     nil,
 	})
 }
@@ -72,7 +72,7 @@ func (l *Lock) EmitMaintainStarted() {
 func (l *Lock) EmitMaintainStopped() {
 	l.Emit(Event{
 		Code:    215,
-		Message: fmt.Sprintf("Lock %s maintain loop stopped", l.Name),
+		Message: fmt.Sprintf("Lock %s(%s) maintain loop stopped", l.Name, l.InstanceID),
 		Err:     nil,
 	})
 }
@@ -80,7 +80,7 @@ func (l *Lock) EmitMaintainStopped() {
 func (l *Lock) EmitDebug(msg string) {
 	l.Emit(Event{
 		Code:    299,
-		Message: fmt.Sprintf("[%s] Debug: %s", l.Name, msg),
+		Message: fmt.Sprintf("Lock %s(%s) debug: %s", l.Name, l.InstanceID, msg),
 		Err:     nil,
 	})
 }
