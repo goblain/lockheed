@@ -180,7 +180,10 @@ func (locker *KubeLocker) GetAllLocks() ([]*Lock, error) {
 }
 
 func (locker *KubeLocker) Acquire(l *Lock) error {
-	locker.Init(l)
+	err := locker.Init(l)
+	if err != nil {
+		return fmt.Errorf("Error initiating lock: %w", err)
+	}
 	cmap, err := locker.GetReservedConfigMap(l)
 	if err != nil {
 		return fmt.Errorf("GetReservedConfigMap: %w", err)
