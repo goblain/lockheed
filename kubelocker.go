@@ -160,7 +160,7 @@ func (locker *KubeLocker) ReleaseConfigMap(l *Lock) error {
 	return nil
 }
 
-func (locker *KubeLocker) GetAllLocks() ([]*Lock, error) {
+func (locker *KubeLocker) GetAllLocks(ctx context.Context) ([]*Lock, error) {
 	var result []*Lock
 	opts := metav1.ListOptions{
 		LabelSelector: "lockheed/lock",
@@ -242,7 +242,7 @@ func (locker *KubeLocker) Acquire(ctx context.Context, l *Lock) error {
 	return locker.UpdateAndReleaseConfigMap(l.Context, cmap)
 }
 
-func (locker *KubeLocker) Renew(l *Lock) error {
+func (locker *KubeLocker) Renew(ctx context.Context, l *Lock) error {
 	cmap, err := locker.GetReservedConfigMap(l)
 	if err != nil {
 		return err
@@ -275,7 +275,7 @@ func (locker *KubeLocker) Renew(l *Lock) error {
 	return nil
 }
 
-func (locker *KubeLocker) Release(l *Lock) error {
+func (locker *KubeLocker) Release(ctx context.Context, l *Lock) error {
 	cmap, err := locker.GetReservedConfigMap(l)
 	if err != nil {
 		return err

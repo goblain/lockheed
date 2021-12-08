@@ -38,12 +38,13 @@ func CreateEmptyConfigmap() error {
 }
 
 func TestKubeLockerForce(t *testing.T) {
+	ctx := context.Background()
 	lockA := NewLock("testlockx", GetTestKubeLocker()).WithDuration(5 * time.Second).WithTags([]string{"forceme"})
-	if err := lockA.Acquire(); err != nil {
+	if err := lockA.Acquire(ctx); err != nil {
 		t.Error(err)
 	}
 	lockB := NewLock("testlockx", GetTestKubeLocker()).WithDuration(5 * time.Second)
-	if err := lockB.Acquire(); err == nil {
+	if err := lockB.Acquire(ctx); err == nil {
 		t.Error("Failure expected")
 	}
 
@@ -55,7 +56,7 @@ func TestKubeLockerForce(t *testing.T) {
 			Field:     FieldTags,
 			Value:     "forceme",
 		})
-	if err := lockC.Acquire(); err != nil {
+	if err := lockC.Acquire(ctx); err != nil {
 		t.Error(err)
 	}
 	lockD := NewLock("testlockx", GetTestKubeLocker()).
@@ -66,41 +67,42 @@ func TestKubeLockerForce(t *testing.T) {
 			Field:     FieldTags,
 			Value:     "forceme",
 		})
-	if err := lockD.Acquire(); err == nil {
+	if err := lockD.Acquire(ctx); err == nil {
 		t.Error("Failure expected")
 	}
 }
 
 func TestKubeLocker(t *testing.T) {
+	ctx := context.Background()
 	CreateEmptyConfigmap()
 	lockA := NewLock("testlock", GetTestKubeLocker()).
 		WithDuration(10 * time.Second).
 		WithRenewInterval(5 * time.Second).
 		WithTags([]string{"testtag"})
-	if err := lockA.Acquire(); err != nil {
+	if err := lockA.Acquire(ctx); err != nil {
 		t.Error(err)
 	}
 	lockB := NewLock("testlock", GetTestKubeLocker()).
 		WithDuration(10 * time.Second).
 		WithRenewInterval(5 * time.Second).
 		WithTags([]string{"testtag"})
-	if err := lockB.AcquireRetry(2, 2); err == nil {
+	if err := lockB.AcquireRetry(ctx, 2, 2); err == nil {
 		t.Error("Expected to fail")
 	}
 	lockC := NewLock("testlock2", GetTestKubeLocker()).
 		WithDuration(10 * time.Second).
 		WithRenewInterval(5 * time.Second).
 		WithTags([]string{"testtag"})
-	if err := lockC.AcquireRetry(5, 3); err != nil {
+	if err := lockC.AcquireRetry(ctx, 5, 3); err != nil {
 		t.Error(err)
 	}
-	if err := lockA.Release(); err != nil {
+	if err := lockA.Release(ctx); err != nil {
 		t.Error(err)
 	}
-	if err := lockB.Acquire(); err != nil {
+	if err := lockB.Acquire(ctx); err != nil {
 		t.Error(err)
 	}
-	if err := lockB.Release(); err != nil {
+	if err := lockB.Release(ctx); err != nil {
 		t.Error(err)
 	}
 
@@ -120,7 +122,7 @@ func TestKubeLocker(t *testing.T) {
 		},
 	}
 
-	locks, err := GetLocks(NewKubeLocker(cset, "default"), cond)
+	locks, err := GetLocks(ctx, NewKubeLocker(cset, "default"), cond)
 	if err != nil {
 		t.Error(err)
 	}
@@ -128,10 +130,10 @@ func TestKubeLocker(t *testing.T) {
 		t.Error("Lock not listed as expected")
 	}
 
-	if err := lockC.Release(); err != nil {
+	if err := lockC.Release(ctx); err != nil {
 		t.Error(err)
 	}
-	if err := lockC.Release(); err != nil {
+	if err := lockC.Release(ctx); err != nil {
 		t.Error(err)
 	}
 	time.Sleep(2 * time.Second)

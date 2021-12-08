@@ -116,24 +116,24 @@ func (l *Lock) Init() {
 	l.initialized = true
 }
 
-func (l *Lock) Acquire() error {
+func (l *Lock) Acquire(ctx context.Context) error {
 	if !l.initialized {
 		return fmt.Errorf("Lock needs to be properly initialized first")
 	}
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	if err := l.Locker.Acquire(l); err != nil {
+	if err := l.Locker.Acquire(ctx, l); err != nil {
 		l.EmitAcquireFailed(err)
 		return err
 	}
 	if l.RenewInterval.Seconds() != 0 {
-		go l.Maintain()
+		go l.Maintain(ctx)
 	}
 	l.EmitAcquireSuccessful()
 	return nil
 }
 
-func (l *Lock) AcquireRetry(retries int, delay time.Duration) error {
+func (l *Lock) AcquireRetry(ctx context.Context, retries int, delay time.Duration) error {
 	if !l.initialized {
 		return fmt.Errorf("Lock needs to be properly initialized first")
 	}
@@ -141,7 +141,7 @@ func (l *Lock) AcquireRetry(retries int, delay time.Duration) error {
 	attempt := 0
 	for {
 		attempt++
-		err = l.Acquire()
+		err = l.Acquire(ctx)
 		if err != nil {
 			if attempt <= retries {
 				time.Sleep(delay)
@@ -153,14 +153,14 @@ func (l *Lock) AcquireRetry(retries int, delay time.Duration) error {
 	return err
 }
 
-func (l *Lock) Release() error {
+func (l *Lock) Release(ctx context.Context) error {
 	if !l.initialized {
 		return fmt.Errorf("Lock needs to be properly initialized first")
 	}
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	l.maintained = false
-	if err := l.Locker.Release(l); err != nil {
+	if err := l.Locker.Release(ctx, l); err != nil {
 		l.EmitReleaseFailed(err)
 		return err
 	}
@@ -168,13 +168,13 @@ func (l *Lock) Release() error {
 	return nil
 }
 
-func (l *Lock) Renew() error {
+func (l *Lock) Renew(ctx context.Context) error {
 	if !l.initialized {
 		return fmt.Errorf("Lock needs to be properly initialized first")
 	}
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	if err := l.Locker.Renew(l); err != nil {
+	if err := l.Locker.Renew(ctx, l); err != nil {
 		l.EmitRenewFailed(err)
 		return err
 	}
@@ -182,7 +182,7 @@ func (l *Lock) Renew() error {
 	return nil
 }
 
-func (l *Lock) Maintain() {
+func (l *Lock) Maintain(ctx context.Context) {
 	l.maintained = true
 	l.EmitMaintainStarted()
 	ticks := time.Tick(l.RenewInterval)
@@ -197,7 +197,7 @@ func (l *Lock) Maintain() {
 				l.EmitMaintainStopped()
 				return
 			}
-			l.Renew()
+			l.Renew(ctx)
 		}
 	}
 }

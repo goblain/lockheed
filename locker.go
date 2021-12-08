@@ -4,16 +4,16 @@ import "context"
 
 type LockerInterface interface {
 	Acquire(context.Context, *Lock) error
-	Renew(*Lock) error
-	Release(*Lock) error
+	Renew(context.Context, *Lock) error
+	Release(context.Context, *Lock) error
 	// List all locks, this locker has access to
-	GetAllLocks() ([]*Lock, error)
+	GetAllLocks(context.Context) ([]*Lock, error)
 	// ForcefulRemoval(string, []Condition)
 }
 
-func GetLocks(locker LockerInterface, c *Condition) ([]*Lock, error) {
+func GetLocks(ctx context.Context, locker LockerInterface, c *Condition) ([]*Lock, error) {
 	var result []*Lock
-	locks, err := locker.GetAllLocks()
+	locks, err := locker.GetAllLocks(ctx)
 	if err != nil {
 		return nil, err
 	}
