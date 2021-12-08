@@ -58,12 +58,17 @@ type LockState struct {
 
 func (locker *FirestoreLocker) SaveLockState(ctx context.Context, ls *LockState) (err error) {
 	preconds := []firestore.Precondition{}
+	fmt.Printf("sls")
 	if ls.Source != nil {
 		originalSnap := ls.Source.(*firestore.DocumentSnapshot)
-		preconds = append(preconds, firestore.LastUpdateTime(originalSnap.UpdateTime))
+		if originalSnap != nil {
+			preconds = append(preconds, firestore.LastUpdateTime(originalSnap.UpdateTime))
+		}
 	}
+	fmt.Printf("sls2")
 	fls := &FirestoreLockState{}
 	if ls != nil && ls.Lock != nil {
+		fmt.Printf("sls4")
 		fls.SetLock(ls.Lock)
 		_, err = locker.Client.Doc(locker.CollectionPath+"/"+ls.Lock.Name).Update(
 			ctx,
@@ -72,6 +77,7 @@ func (locker *FirestoreLocker) SaveLockState(ctx context.Context, ls *LockState)
 			},
 			preconds...,
 		)
+		fmt.Printf("sls3")
 		return err
 	}
 	return nil
