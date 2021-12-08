@@ -179,7 +179,7 @@ func (locker *KubeLocker) GetAllLocks() ([]*Lock, error) {
 	return result, nil
 }
 
-func (locker *KubeLocker) Acquire(l *Lock) error {
+func (locker *KubeLocker) Acquire(ctx context.Context, l *Lock) error {
 	err := locker.Init(l)
 	if err != nil {
 		return fmt.Errorf("Error initiating lock: %w", err)

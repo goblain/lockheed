@@ -70,9 +70,6 @@ func (locker *FirestoreLocker) GetLockState(ctx context.Context, lockName string
 func (locker *FirestoreLocker) GetAllLocks(ctx context.Context) ([]*Lock, error) {
 	var result []*Lock
 	refs := locker.Client.Collection(locker.CollectionPath).DocumentRefs(ctx)
-	// if err != nil {
-	// 	return result, err
-	// }
 	for {
 		item, err := refs.Next()
 		if err == iterator.Done {
