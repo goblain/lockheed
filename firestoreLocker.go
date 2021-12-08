@@ -57,7 +57,7 @@ type LockState struct {
 	Source          interface{}
 }
 
-func (locker *FirestoreLocker) SaveLockState(ctx context.Context, ls *LockState) (err error) {
+func (locker *FirestoreLocker) SaveLockState(ctx context.Context, ls *LockState) error {
 	preconds := []firestore.Precondition{}
 	log.Printf("sls")
 	if ls.Source != nil {
@@ -71,7 +71,8 @@ func (locker *FirestoreLocker) SaveLockState(ctx context.Context, ls *LockState)
 	if ls != nil && ls.Lock != nil {
 		log.Printf("sls4")
 		fls.SetLock(ls.Lock)
-		_, err = locker.Client.Doc(locker.CollectionPath+"/"+ls.Lock.Name).Update(
+		ref := locker.Client.Doc(locker.CollectionPath + "/" + ls.Lock.Name)
+		_, err := ref.Update(
 			ctx,
 			[]firestore.Update{
 				firestore.Update{Path: "lock", Value: fls.Lock},
@@ -79,7 +80,10 @@ func (locker *FirestoreLocker) SaveLockState(ctx context.Context, ls *LockState)
 			preconds...,
 		)
 		log.Printf("sls3")
-		return err
+		if err != nil {
+			return err
+		}
+		log.Printf("sls5")
 	}
 	return nil
 }
@@ -182,6 +186,7 @@ func (locker *FirestoreLocker) Acquire(ctx context.Context, l *Lock) error {
 
 	log.Printf("dupa1")
 	err = locker.SaveLockState(ctx, lockState)
+	log.Printf("dupa2")
 	return err
 }
 
