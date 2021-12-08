@@ -24,6 +24,7 @@ type Lock struct {
 	Context    context.Context      `json:"-"`
 	Cancel     func()               `json:"-"`
 	Locker     LockerInterface      `json:"-"`
+	Emiter     bool
 	Options
 	stopChan     chan interface{}
 	eventChan    chan Event
@@ -70,7 +71,7 @@ func DefaultEventHandler(ctx context.Context, echan chan Event) {
 }
 
 func NewLock(name string, locker LockerInterface) *Lock {
-	l := &Lock{Name: name}
+	l := &Lock{Name: name, Emiter: true}
 	l.Locker = locker
 	l = l.WithContext(context.Background())
 	l.Init()
@@ -107,12 +108,19 @@ func (l *Lock) WithRenewInterval(interval time.Duration) *Lock {
 	return l
 }
 
+func (l *Lock) WithEmiter(enabled bool) *Lock {
+	l.Emiter = enabled
+	return l
+}
+
 func (l *Lock) Init() {
 	l.InstanceID = uuid.New().String()
 	l.stopChan = make(chan interface{})
 	l.eventChan = make(chan Event)
 	l.eventHandler = DefaultEventHandler
-	go l.eventHandler(l.Context, l.eventChan)
+	if l.Emiter {
+		go l.eventHandler(l.Context, l.eventChan)
+	}
 	l.initialized = true
 }
 

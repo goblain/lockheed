@@ -9,7 +9,9 @@ type Event struct {
 }
 
 func (l *Lock) Emit(e Event) error {
-	l.eventChan <- e
+	if l.Emiter {
+		l.eventChan <- e
+	}
 	return e.Err
 }
 
