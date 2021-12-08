@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -58,17 +59,17 @@ type LockState struct {
 
 func (locker *FirestoreLocker) SaveLockState(ctx context.Context, ls *LockState) (err error) {
 	preconds := []firestore.Precondition{}
-	fmt.Printf("sls")
+	log.Printf("sls")
 	if ls.Source != nil {
 		originalSnap := ls.Source.(*firestore.DocumentSnapshot)
 		if originalSnap != nil {
 			preconds = append(preconds, firestore.LastUpdateTime(originalSnap.UpdateTime))
 		}
 	}
-	fmt.Printf("sls2")
+	log.Printf("sls2")
 	fls := &FirestoreLockState{}
 	if ls != nil && ls.Lock != nil {
-		fmt.Printf("sls4")
+		log.Printf("sls4")
 		fls.SetLock(ls.Lock)
 		_, err = locker.Client.Doc(locker.CollectionPath+"/"+ls.Lock.Name).Update(
 			ctx,
@@ -77,7 +78,7 @@ func (locker *FirestoreLocker) SaveLockState(ctx context.Context, ls *LockState)
 			},
 			preconds...,
 		)
-		fmt.Printf("sls3")
+		log.Printf("sls3")
 		return err
 	}
 	return nil
@@ -138,6 +139,7 @@ func (locker *FirestoreLocker) GetAllLocks(ctx context.Context) ([]*Lock, error)
 
 // TODO: extract to locker independent code
 func (locker *FirestoreLocker) Acquire(ctx context.Context, l *Lock) error {
+	log.Printf("dupa0")
 	lockState, err := locker.GetLockState(ctx, l.Name, true)
 	if err != nil {
 		return err
@@ -178,7 +180,9 @@ func (locker *FirestoreLocker) Acquire(ctx context.Context, l *Lock) error {
 
 	syncLockFields(l, lockState.Lock)
 
-	return locker.SaveLockState(ctx, lockState)
+	log.Printf("dupa1")
+	err = locker.SaveLockState(ctx, lockState)
+	return err
 }
 
 func (locker *FirestoreLocker) Renew(ctx context.Context, l *Lock) error {
