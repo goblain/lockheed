@@ -18,6 +18,10 @@ type FirestoreLocker struct {
 	CollectionPath string
 }
 
+type FirestoreLockState struct {
+	Lock []byte `firestore:"lock"`
+}
+
 func NewFirestoreLocker(fsc *firestore.Client, path string) *FirestoreLocker {
 	locker := &FirestoreLocker{
 		Client:         fsc,
@@ -34,13 +38,14 @@ type LockState struct {
 	Source          interface{}
 }
 
-func (locker *FirestoreLocker) SaveLockState(ctx context.Context, ls *LockState) error {
+func (locker *FirestoreLocker) SaveLockState(ctx context.Context, ls *LockState) (err error) {
 	preconds := []firestore.Precondition{}
 	originalSnap := ls.Source.(*firestore.DocumentSnapshot)
 	if originalSnap != nil {
 		preconds = append(preconds, firestore.LastUpdateTime(originalSnap.UpdateTime))
 	}
-	marshaled, err := json.Marshal(ls.Lock)
+	fls := &FirestoreLockState{}
+	fls.Lock, err = json.Marshal(ls.Lock)
 	if err != nil {
 		return err
 	}
@@ -48,7 +53,7 @@ func (locker *FirestoreLocker) SaveLockState(ctx context.Context, ls *LockState)
 	_, err = locker.Client.Doc(locker.CollectionPath+"/"+ls.Lock.Name).Update(
 		ctx,
 		[]firestore.Update{
-			firestore.Update{Path: "lock", Value: marshaled},
+			firestore.Update{Path: "lock", Value: fls.Lock},
 		},
 		preconds...,
 	)
@@ -62,9 +67,8 @@ func (locker *FirestoreLocker) GetLockState(ctx context.Context, lockName string
 		if status.Code(err) == codes.NotFound {
 			lock := &Lock{Name: lockName}
 			marshaled, _ := json.Marshal(lock)
-			_, err = locker.Client.Doc(locker.CollectionPath+"/"+lockName).Set(ctx, struct {
-				Lock string `firestore:"lock"`
-			}{Lock: string(marshaled)})
+			fls := &FirestoreLockState{Lock: marshaled}
+			_, err = locker.Client.Doc(locker.CollectionPath+"/"+lockName).Set(ctx, fls)
 			snap, err = locker.Client.Doc(locker.CollectionPath + "/" + lockName).Get(ctx)
 			if err != nil {
 				return nil, err
@@ -77,9 +81,9 @@ func (locker *FirestoreLocker) GetLockState(ctx context.Context, lockName string
 	lockState.Source = snap
 	lockState.Lock = &Lock{}
 
-	marshaled, ok := snap.Data()["lock"]
-	if ok {
-		if err := json.Unmarshal([]byte(marshaled.(string)), lockState.Lock); err != nil {
+	fls := &FirestoreLockState{}
+	if err := snap.DataTo(fls); err == nil {
+		if err := json.Unmarshal(fls.Lock, lockState.Lock); err != nil {
 			return nil, err
 		}
 	}
@@ -100,10 +104,10 @@ func (locker *FirestoreLocker) GetAllLocks(ctx context.Context) ([]*Lock, error)
 
 		snap, err := item.Get(ctx)
 
+		fls := &FirestoreLockState{}
 		lockState := &LockState{}
-		marshaled, ok := snap.Data()["lock"]
-		if ok {
-			if err := json.Unmarshal(marshaled.([]byte), lockState.Lock); err != nil {
+		if err := snap.DataTo(fls); err != nil {
+			if err := json.Unmarshal(fls.Lock, lockState.Lock); err != nil {
 				return nil, err
 			}
 		}
