@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"runtime"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -89,6 +90,9 @@ func (locker *FirestoreLocker) SaveLockState(ctx context.Context, ls *LockState)
 }
 
 func (locker *FirestoreLocker) GetLockState(ctx context.Context, lockName string, reserve bool) (*LockState, error) {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	log.Printf("gls0 %v", m.Alloc)
 	lockState := &LockState{}
 	snap, err := locker.Client.Doc(locker.CollectionPath + "/" + lockName).Get(ctx)
 	if err != nil {
@@ -115,6 +119,7 @@ func (locker *FirestoreLocker) GetLockState(ctx context.Context, lockName string
 	} else {
 		return nil, err
 	}
+	log.Printf("gls1 %v", m.Alloc)
 	return lockState, nil
 }
 
@@ -143,7 +148,9 @@ func (locker *FirestoreLocker) GetAllLocks(ctx context.Context) ([]*Lock, error)
 
 // TODO: extract to locker independent code
 func (locker *FirestoreLocker) Acquire(ctx context.Context, l *Lock) error {
-	log.Printf("dupa0")
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	log.Printf("dupa0 %v", m.Alloc)
 	lockState, err := locker.GetLockState(ctx, l.Name, true)
 	if err != nil {
 		return err
@@ -184,9 +191,9 @@ func (locker *FirestoreLocker) Acquire(ctx context.Context, l *Lock) error {
 
 	syncLockFields(l, lockState.Lock)
 
-	log.Printf("dupa1")
+	log.Printf("dupa1 %v", m.Alloc)
 	err = locker.SaveLockState(ctx, lockState)
-	log.Printf("dupa2")
+	log.Printf("dupa2 %v", m.Alloc)
 	return err
 }
 
