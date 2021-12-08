@@ -79,7 +79,7 @@ func (locker *FirestoreLocker) GetLockState(ctx context.Context, lockName string
 
 	marshaled, ok := snap.Data()["lock"]
 	if ok {
-		if err := json.Unmarshal(marshaled.([]byte), lockState.Lock); err != nil {
+		if err := json.Unmarshal([]byte(marshaled.(string)), lockState.Lock); err != nil {
 			return nil, err
 		}
 	}
