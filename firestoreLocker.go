@@ -60,7 +60,15 @@ func (locker *FirestoreLocker) GetLockState(ctx context.Context, lockName string
 	snap, err := locker.Client.Doc(locker.CollectionPath + "/" + lockName).Get(ctx)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
-			_, err = locker.Client.Doc(locker.CollectionPath+"/"+lockName).Set(ctx, lockState)
+			lock := &Lock{Name: lockName}
+			marshaled, _ := json.Marshal(lock)
+			_, err = locker.Client.Doc(locker.CollectionPath+"/"+lockName).Set(ctx, struct {
+				Lock string `firestore:"lock"`
+			}{Lock: string(marshaled)})
+			snap, err = locker.Client.Doc(locker.CollectionPath + "/" + lockName).Get(ctx)
+			if err != nil {
+				return nil, err
+			}
 		} else {
 			return nil, err
 		}
