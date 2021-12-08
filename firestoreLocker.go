@@ -35,7 +35,11 @@ type LockState struct {
 }
 
 func (locker *FirestoreLocker) SaveLockState(ctx context.Context, ls *LockState) error {
+	preconds := []firestore.Precondition{}
 	originalSnap := ls.Source.(*firestore.DocumentSnapshot)
+	if originalSnap != nil {
+		preconds = append(preconds, firestore.LastUpdateTime(originalSnap.UpdateTime))
+	}
 	marshaled, err := json.Marshal(ls.Lock)
 	if err != nil {
 		return err
@@ -46,7 +50,7 @@ func (locker *FirestoreLocker) SaveLockState(ctx context.Context, ls *LockState)
 		[]firestore.Update{
 			firestore.Update{Path: "lock", Value: marshaled},
 		},
-		firestore.LastUpdateTime(originalSnap.UpdateTime),
+		preconds...,
 	)
 	return err
 }
