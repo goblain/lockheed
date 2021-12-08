@@ -22,6 +22,24 @@ type FirestoreLockState struct {
 	Lock []byte `firestore:"lock"`
 }
 
+func (fls *FirestoreLockState) SetLock(l *Lock) {
+	var err error
+	fls.Lock, err = json.Marshal(l)
+	if err != nil {
+		panic(err.Error())
+	}
+}
+
+func (fls *FirestoreLockState) GetLock() *Lock {
+	var err error
+	l := &Lock{}
+	err = json.Unmarshal(fls.Lock, l)
+	if err != nil {
+		panic(err.Error())
+	}
+	return l
+}
+
 func NewFirestoreLocker(fsc *firestore.Client, path string) *FirestoreLocker {
 	locker := &FirestoreLocker{
 		Client:         fsc,
@@ -45,10 +63,7 @@ func (locker *FirestoreLocker) SaveLockState(ctx context.Context, ls *LockState)
 		preconds = append(preconds, firestore.LastUpdateTime(originalSnap.UpdateTime))
 	}
 	fls := &FirestoreLockState{}
-	fls.Lock, err = json.Marshal(ls.Lock)
-	if err != nil {
-		return err
-	}
+	fls.SetLock(ls.Lock)
 
 	_, err = locker.Client.Doc(locker.CollectionPath+"/"+ls.Lock.Name).Update(
 		ctx,
@@ -66,8 +81,8 @@ func (locker *FirestoreLocker) GetLockState(ctx context.Context, lockName string
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
 			lock := &Lock{Name: lockName}
-			marshaled, _ := json.Marshal(lock)
-			fls := &FirestoreLockState{Lock: marshaled}
+			fls := &FirestoreLockState{}
+			fls.SetLock(lock)
 			_, err = locker.Client.Doc(locker.CollectionPath+"/"+lockName).Set(ctx, fls)
 			snap, err = locker.Client.Doc(locker.CollectionPath + "/" + lockName).Get(ctx)
 			if err != nil {
@@ -83,9 +98,9 @@ func (locker *FirestoreLocker) GetLockState(ctx context.Context, lockName string
 
 	fls := &FirestoreLockState{}
 	if err := snap.DataTo(fls); err == nil {
-		if err := json.Unmarshal(fls.Lock, lockState.Lock); err != nil {
-			return nil, err
-		}
+		lockState.Lock = fls.GetLock()
+	} else {
+		return nil, err
 	}
 	return lockState, nil
 }
@@ -105,13 +120,10 @@ func (locker *FirestoreLocker) GetAllLocks(ctx context.Context) ([]*Lock, error)
 		snap, err := item.Get(ctx)
 
 		fls := &FirestoreLockState{}
-		lockState := &LockState{}
-		if err := snap.DataTo(fls); err != nil {
-			if err := json.Unmarshal(fls.Lock, lockState.Lock); err != nil {
-				return nil, err
-			}
+		if err := snap.DataTo(fls); err == nil {
+			lock := fls.GetLock()
+			result = append(result, lock)
 		}
-		result = append(result, lockState.Lock)
 	}
 	return result, nil
 }
