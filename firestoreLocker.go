@@ -63,16 +63,18 @@ func (locker *FirestoreLocker) SaveLockState(ctx context.Context, ls *LockState)
 		preconds = append(preconds, firestore.LastUpdateTime(originalSnap.UpdateTime))
 	}
 	fls := &FirestoreLockState{}
-	fls.SetLock(ls.Lock)
-
-	_, err = locker.Client.Doc(locker.CollectionPath+"/"+ls.Lock.Name).Update(
-		ctx,
-		[]firestore.Update{
-			firestore.Update{Path: "lock", Value: fls.Lock},
-		},
-		preconds...,
-	)
-	return err
+	if ls != nil && ls.Lock != nil {
+		fls.SetLock(ls.Lock)
+		_, err = locker.Client.Doc(locker.CollectionPath+"/"+ls.Lock.Name).Update(
+			ctx,
+			[]firestore.Update{
+				firestore.Update{Path: "lock", Value: fls.Lock},
+			},
+			preconds...,
+		)
+		return err
+	}
+	return nil
 }
 
 func (locker *FirestoreLocker) GetLockState(ctx context.Context, lockName string, reserve bool) (*LockState, error) {
