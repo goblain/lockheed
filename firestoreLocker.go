@@ -55,17 +55,22 @@ type LockState struct {
 	ReservedBy      *string
 	ReservedExpires *time.Time
 	Release         func() error
-	Source          interface{}
+	Metadata        map[string]interface{}
+}
+
+func NewLockState() *LockState {
+	mdta := make(map[string]interface{})
+	return &LockState{
+		Metadata: mdta,
+	}
 }
 
 func (locker *FirestoreLocker) SaveLockState(ctx context.Context, ls *LockState) error {
 	preconds := []firestore.Precondition{}
 	log.Printf("sls")
-	if ls.Source != nil {
-		originalSnap := ls.Source.(*firestore.DocumentSnapshot)
-		if originalSnap != nil {
-			preconds = append(preconds, firestore.LastUpdateTime(originalSnap.UpdateTime))
-		}
+	updateTime, ok := ls.Metadata["updateTime"]
+	if ok {
+		preconds = append(preconds, firestore.LastUpdateTime(updateTime.(time.Time)))
 	}
 	log.Printf("sls2")
 	fls := &FirestoreLockState{}
@@ -93,7 +98,7 @@ func (locker *FirestoreLocker) GetLockState(ctx context.Context, lockName string
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 	log.Printf("gls0 %v", m.Alloc)
-	lockState := &LockState{}
+	lockState := NewLockState()
 	snap, err := locker.Client.Doc(locker.CollectionPath + "/" + lockName).Get(ctx)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
@@ -110,7 +115,7 @@ func (locker *FirestoreLocker) GetLockState(ctx context.Context, lockName string
 		}
 
 	}
-	lockState.Source = snap
+	lockState.Metadata["updateTime"] = snap.UpdateTime
 	lockState.Lock = &Lock{}
 
 	fls := &FirestoreLockState{}
