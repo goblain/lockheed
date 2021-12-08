@@ -8,6 +8,8 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"google.golang.org/api/iterator"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	// "google.golang.org/genproto/googleapis/firestore/v1"
 )
 
@@ -53,7 +55,12 @@ func (locker *FirestoreLocker) GetLockState(ctx context.Context, lockName string
 	lockState := &LockState{}
 	snap, err := locker.Client.Doc(locker.CollectionPath + "/" + lockName).Get(ctx)
 	if err != nil {
-		return nil, err
+		if status.Code(err) != codes.NotFound {
+			return nil, err
+		} else {
+			_, err = locker.Client.Doc(locker.CollectionPath+"/"+lockName).Set(ctx, lockState)
+		}
+
 	}
 	lockState.Source = snap
 	lockState.Lock = &Lock{}
