@@ -55,10 +55,10 @@ func (locker *FirestoreLocker) GetLockState(ctx context.Context, lockName string
 	lockState := &LockState{}
 	snap, err := locker.Client.Doc(locker.CollectionPath + "/" + lockName).Get(ctx)
 	if err != nil {
-		if status.Code(err) != codes.NotFound {
-			return nil, err
-		} else {
+		if status.Code(err) == codes.NotFound {
 			_, err = locker.Client.Doc(locker.CollectionPath+"/"+lockName).Set(ctx, lockState)
+		} else {
+			return nil, err
 		}
 
 	}
