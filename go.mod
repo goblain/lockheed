@@ -3,6 +3,7 @@ module github.com/goblain/lockheed
 go 1.13
 
 require (
+	github.com/goblain/go-retry v0.0.0-20221205140251-4ffabb57e5da // indirect
 	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/google/uuid v1.1.1
 	golang.org/x/crypto v0.0.0-20200709230013-948cd5f35899 // indirect

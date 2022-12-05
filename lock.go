@@ -3,6 +3,7 @@ package lockheed
 import (
 	"context"
 	"fmt"
+	"github.com/goblain/go-retry"
 	"log"
 	"sync"
 	"time"
@@ -116,16 +117,47 @@ func (l *Lock) Init() {
 	l.initialized = true
 }
 
-func (l *Lock) Acquire() error {
+type AcquireOptions struct {
+	RetryLogic *retry.RetryLogic
+}
+
+type AcquireOption func(opts *AcquireOptions) error
+
+func AcquireOptionWithRetry(rl *retry.RetryLogic) AcquireOption {
+	return func(opts *AcquireOptions) error {
+		opts.RetryLogic = rl
+		return nil
+	}
+}
+
+func (l *Lock) Acquire(opts ...AcquireOption) error {
+	rl, err := retry.NewRetryLogic(retry.WithNoRetry())
+	if err != nil {
+		return err
+	}
+	ao := &AcquireOptions{RetryLogic: rl}
+	for _, opt := range opts {
+		if err := opt(ao); err != nil {
+			return err
+		}
+	}
 	if !l.initialized {
 		return fmt.Errorf("Lock needs to be properly initialized first")
 	}
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
-	if err := l.Locker.Acquire(l); err != nil {
+
+	err = ao.RetryLogic.ExecuteFunc(func() error {
+		if err := l.Locker.Acquire(l); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
 		l.EmitAcquireFailed(err)
 		return err
 	}
+
 	if l.RenewInterval.Seconds() != 0 {
 		go l.Maintain()
 	}
@@ -134,23 +166,11 @@ func (l *Lock) Acquire() error {
 }
 
 func (l *Lock) AcquireRetry(retries int, delay time.Duration) error {
-	if !l.initialized {
-		return fmt.Errorf("Lock needs to be properly initialized first")
+	rl, err := retry.NewRetryLogic(retry.WithMaxAttempts(int32(retries)), retry.WithLinearBackoff(delay))
+	if err != nil {
+		return err
 	}
-	var err error
-	attempt := 0
-	for {
-		attempt++
-		err = l.Acquire()
-		if err != nil {
-			if attempt <= retries {
-				time.Sleep(delay)
-				continue
-			}
-		}
-		break
-	}
-	return err
+	return l.Acquire(AcquireOptionWithRetry(rl))
 }
 
 func (l *Lock) Release() error {
